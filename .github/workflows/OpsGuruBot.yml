@@ -46,8 +46,8 @@ jobs:
     steps:
       - name: TriggerOpsGuruBot
         run: |
-          curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${{ secrets.GH_PERSONAL_TOKEN }}" -d '{"ref":"refs/heads/master"}' \
-            https://api.github.com/repos/harrythedevopsguy/mProject/actions/workflows/OpsGuruBot.yml/dispatches
+          curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${{ secrets.MPROJECT_GH_TOKEN }}" -d '{"ref":"refs/heads/master"}' \
+            https://api.github.com/repos/harry41/codex/actions/workflows/OpsGuruBot.yml/dispatches
 
 
            
