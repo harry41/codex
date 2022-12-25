@@ -36,7 +36,7 @@ jobs:
         run: |
           pip install -r OpsGuruBot/requirements.txt
           #python OpsGuruBot/OpsGuruBot.py
-          nohup python -u OpsGuruBot/OpsGuruBot.py > output.log &;
+          nohup python -u OpsGuruBot/OpsGuruBot.py > output.log &
           echo "started"
           for (( i = 0; i < 5; i++ )); do
             tail output.log -n 10
