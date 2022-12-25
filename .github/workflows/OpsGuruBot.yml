@@ -35,7 +35,14 @@ jobs:
         working-directory: ${{ github.workspace }}/mCloud-Apps
         run: |
           pip install -r OpsGuruBot/requirements.txt
-          python OpsGuruBot/OpsGuruBot.py
+          #python OpsGuruBot/OpsGuruBot.py
+          nohup python -u OpsGuruBot/OpsGuruBot.py > output.log &;
+          echo "started"
+          for (( i = 0; i < 5; i++ )); do
+            tail output.log -n 10
+            echo "Pls wait for 60 sec"
+            sleep 20
+          done
 
 
   TriggerWorkflow:
@@ -47,7 +54,7 @@ jobs:
       - name: TriggerOpsGuruBot
         run: |
           curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${{ secrets.MPROJECT_GH_TOKEN }}" -d '{"ref":"refs/heads/master"}' \
-            https://api.github.com/repos/harry41/codex/actions/workflows/OpsGuruBot.yml/dispatches
+          https://api.github.com/repos/harry41/codex/actions/workflows/OpsGuruBot.yml/dispatches
 
 
            
