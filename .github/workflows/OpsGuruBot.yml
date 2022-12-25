@@ -12,7 +12,7 @@ on:
 jobs:
   OpsGuruBot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 120
     defaults:
       run:
         shell: bash
@@ -38,10 +38,10 @@ jobs:
           #python OpsGuruBot/OpsGuruBot.py
           nohup python -u OpsGuruBot/OpsGuruBot.py > output.log &
           echo "started"
-          for (( i = 0; i < 5; i++ )); do
+          for (( i = 0; i < 100; i++ )); do
             tail output.log -n 10
             echo "Pls wait for 60 sec"
-            sleep 20
+            sleep 60
           done
 
 
