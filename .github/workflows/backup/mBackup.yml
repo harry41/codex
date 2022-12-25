@@ -1,0 +1,58 @@
+
+name: mCloud Backup
+on:
+  # schedule:
+  #   - cron:  '0 5 */3 * *'
+  workflow_dispatch:
+    # inputs:
+    #   options:
+    #     description: 'Provide you ansible options'
+    #     default: '-t mstatus'
+
+
+jobs:
+  mCloud-Backup:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     MCLOUD_TELEGRAM_GROUPID: '-737229532' # mcloud
+     MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     DUMP_DIR: "/tmp/mbackup"
+     ZIPPASS: ${{ secrets.SECRETPASS }}
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+          
+      - name: Install required pkgs
+        run: |         
+          git clone git@github.com:HarryTheDevOpsGuy/mConfigs.git /tmp/mconfig
+          git clone git@bitbucket.org:DevOps-Expert/msend.git /tmp/msend
+          sudo curl -sL "https://github.com/HarryTheDevOpsGuy/msend/raw/master/$(uname -p)/msend" -o /usr/bin/msend
+          sudo curl -sL "https://raw.githubusercontent.com/rockymadden/slack-cli/master/src/slack" -o /usr/bin/mslack
+          sudo chmod +x /usr/bin/msend /usr/bin/mslack
+          sudo timedatectl set-timezone Asia/Calcutta
+          mysqldump --version
+          sudo apt-get remove --purge mysql-server mysql-client mysql-common -y
+          sudo apt install -y mariadb-client
+          mysqldump --version
+
+      - name: Run mysql backup
+        run: |
+           cat <<EOT >> mdb.conf
+            ${{ secrets.MYSQL_DBCREDS }}
+            TELEGRAM_TOKEN=${MCLOUD_TELEGRAM_TOKEN}
+            NAMEP=kkkkkkkkkkkkk
+           EOT
+           eval "${{ secrets.MYSQL_DBCREDS }}"
+           bash /tmp/msend/tools/mdb TELEGRAM_TOKEN=${MCLOUD_TELEGRAM_TOKEN} SLACK_CLI_TOKEN=${SLACK_CLI_TOKEN} gtoken=${{ secrets.GH_PERSONAL_TOKEN }} tag=v1 tgid=${MCLOUD_TELEGRAM_GROUPID} SLACK_CHANNEL='#devops' owner=harrythedevopsguy repo=mconfigs
+           

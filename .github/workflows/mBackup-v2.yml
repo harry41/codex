@@ -1,0 +1,44 @@
+
+name: mCloud Backup v2
+on:
+  schedule:
+    - cron:  '0 5 */3 * *'
+  workflow_dispatch:
+    inputs:
+      CREATE_TAG:
+        type: boolean
+
+
+jobs:
+  mCloud-Backup-v2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     MCLOUD_TELEGRAM_GROUPID: '-737229532' # mcloud
+     MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     DUMP_DIR: "/tmp/mbackup"
+     ZIPPASS: ${{ secrets.SECRETPASS }}
+     CREATE_TAG: ${{ github.event.inputs.CREATE_TAG }}
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Install required pkgs
+        run: |         
+          git clone git@bitbucket.org:devopsexpert/mcloud-infra.git /tmp/mcloud-infra
+
+      - name: Run mysql backup
+        run: |
+          export DB_SECRETS=/tmp/mcloud-infra/ansible/files/db.secrets
+          bash /tmp/mcloud-infra/ansible/files/mdbv2.sh TELEGRAM_TOKEN=${MCLOUD_TELEGRAM_TOKEN} tgid=${MCLOUD_TELEGRAM_GROUPID} SLACK_CLI_TOKEN=${SLACK_CLI_TOKEN} SLACK_CHANNEL='#devops' gtoken=${{ secrets.GH_PERSONAL_TOKEN }} owner=harrythedevopsguy repo=mconfigs \
+            GITHUB_RUN_NUMBER=${GITHUB_RUN_NUMBER} create_tag="${CREATE_TAG}"
+           

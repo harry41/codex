@@ -1,0 +1,103 @@
+# This is a basic workflow to help you get started with Actions
+
+name: mProject Sync
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+#   push:
+#     branches: [ master ]
+#   pull_request:
+#     branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Enter Version'
+#         default: 'v0.1.0'
+      appname:
+        description: 'Enter appname'
+        default: 'mweb24x7'
+#       command:
+#         description: 'Build Command'
+#         default: 'mproject -e msend:mcert --sync -tVy'
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+   mProject-Sync:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    container:
+      image: harry97/mcloud-toolkit:20.04
+      env:
+        SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+        GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no"
+        RELEASE_VERSION: ${{ github.event.inputs.version }}
+#         COMMIT_MSG: 'NewBuild ${{ github.event.inputs.version }}'
+        #BUILD_COMMAND: '${{ github.event.inputs.command }}'
+        BUILD_COMMAND: "mproject -e msend:${{ github.event.inputs.appname }} --sync --tags ${{ github.event.inputs.version }} -tVy"
+        MPROJECT_DIR: '/tmp/mproject'
+        MPROJECT_BRANCH: 'master'
+#         SENDGRID_API_KEY: ${{ secrets.DEFAULT_SENDGRID_TOKEN }}
+#         EMAIL_FROM: mcloudautomation@gmail.com
+#         EMAIL_MODE: SENDGRID
+#         REPLY_EMAIL_ADDRESS: 'Harry <HarryTheDevOpsGuy@gmail.com>'
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: mproject clone - ${{ github.event.inputs.appname }}
+        run: |
+          git clone git@bitbucket.org:DevOps-Expert/mproject.git ${MPROJECT_DIR}
+          cd ${MPROJECT_DIR}
+          git checkout ${MPROJECT_BRANCH} || git checkout -b ${MPROJECT_BRANCH}
+
+      - name: make sync - ${{ github.event.inputs.appname }} - ${{ github.ref }}
+        #if : ${{ github.event.inputs.version }} != ""
+        run: |
+          pwd
+          ls -la
+          cd ${MPROJECT_DIR}
+          pwd
+          if [ -z ${RELEASE_VERSION} ]; then
+            bash ${MPROJECT_DIR}/mproject -e msend:${{ github.event.inputs.appname }} --sync -tVyc
+          elif [ ! -z ${RELEASE_VERSION} ]; then
+            bash ${MPROJECT_DIR}/mproject -e msend:${{ github.event.inputs.appname }} --sync --tags "${RELEASE_VERSION}" -tVyc
+          else
+            echo "Something went wrong"
+          fi
+
+      # - uses: actions/upload-artifact@v3
+      #   with:
+      #     name: ${{ github.event.inputs.appname }}-${{ github.event.inputs.version }}
+      #     path: |
+      #       /tmp/mproject/dest/${{ github.event.inputs.appname }}/x86_64/${{ github.event.inputs.appname }}
+      #       /tmp/mproject/dest/${{ github.event.inputs.appname }}/**/*.tmp
+
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        # if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            /tmp/mproject/dest/${{ github.event.inputs.appname }}/x86_64/${{ github.event.inputs.appname }}
+          tag_name: ${{ github.event.inputs.version }}
+          repository: harrythedevopsguy/${{ github.event.inputs.appname }}
+          #body_path: ${{ github.workspace }}-CHANGELOG.txt
+          # note you'll typically need to create a personal access token
+          # with permissions to create releases in the other repo
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}
+        env:
+          GITHUB_REPOSITORY: harrythedevopsguy/${{ github.event.inputs.appname }}
+
+          
+#       - name: make release - ${{ github.event.inputs.appname }}:${{ github.event.inputs.version }}
+#         if : ${{ github.event.inputs.version }} != Null 
+#         run: |
+#           bash ${MPROJECT_DIR}/mproject -e msend:${{ github.event.inputs.appname }} --sync --tags ${{ github.event.inputs.version }} -tVy

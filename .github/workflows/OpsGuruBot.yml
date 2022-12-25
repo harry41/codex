@@ -1,0 +1,53 @@
+
+name: OpsGuruBot
+on:
+#   schedule:
+#     - cron:  '1 4 * * 1-5'
+  workflow_dispatch:
+    # inputs:
+    #   jsondata:
+    #     description: 'Your Telegram JsonData'
+    #     default: "{'update_id': 451330410, 'message': {'group_chat_created': False, 'delete_chat_photo': False, 'new_chat_members': [], 'new_chat_photo': [], 'supergroup_chat_created': False, 'channel_chat_created': False, 'photo': [], 'entities': [], 'message_id': 172, 'date': 1669713923, 'chat': {'first_name': 'Harry', 'last_name': '- The DevOps Guy', 'type': 'private', 'username': 'HarryTheDevOpsGuy', 'id': 1978087031}, 'text': 'Hi this is harry\n\ni see you somewhere. \ndo you know', 'caption_entities': [], 'from': {'language_code': 'en', 'username': 'HarryTheDevOpsGuy', 'last_name': '- The DevOps Guy', 'first_name': 'Harry', 'is_bot': False, 'id': 1978087031}}}"
+        
+jobs:
+  OpsGuruBot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     SLACK_CHANNEL: '#devops'
+     TG_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     GH_TOKEN: ${{ secrets.GH_PERSONAL_TOKEN }}
+             
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Clone required repo
+        run: |
+          git clone git@github.com:HarryTheDevOpsGuy/mCloud-Apps.git ${GITHUB_WORKSPACE}/mCloud-Apps
+          
+      - name: Run OpsGuruBot
+        working-directory: ${{ github.workspace }}/mCloud-Apps
+        run: |
+          pip install -r OpsGuruBot/requirements.txt
+          python OpsGuruBot/OpsGuruBot.py
+
+
+  TriggerWorkflow:
+    if: always()
+    # if: false
+    needs: [OpsGuruBot]
+    runs-on: ubuntu-latest
+    steps:
+      - name: TriggerOpsGuruBot
+        run: |
+          curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${{ secrets.GH_PERSONAL_TOKEN }}" -d '{"ref":"refs/heads/master"}' \
+            https://api.github.com/repos/harrythedevopsguy/mProject/actions/workflows/OpsGuruBot.yml/dispatches
+
+
+           
+         

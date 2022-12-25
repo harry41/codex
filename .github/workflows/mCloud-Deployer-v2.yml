@@ -1,0 +1,127 @@
+name: mCloud Deployer - v2
+on:
+  # schedule:
+  #   - cron:  '5 13 * * 6'
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: 'Your Project Name'
+        default: 'mcloud'
+      environment:
+        description: 'Project env'
+        default: 'dev'
+      options:
+        description: 'Provide you ansible options'
+        default: '-t deploy'
+      DeployApp:
+        type: string
+      DeployBuildNumber:
+        type: string
+        default: 'latest'
+      MakeBuild:
+        type: boolean
+      MakeDeploy:
+        required: true
+        type: boolean
+      # environment:
+      #   type: environment
+
+jobs:
+  mCloud-Deployer-v2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+    # Common Vars
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+
+    # Ansible Vars
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     ANSIBLE_CONFIG: "${GITHUB_WORKSPACE}/mcloud-ansible/inventory/ansible.cfg"
+     ANSIBLE_INVENTORY: "inventory/hosts_${{ github.event.inputs.project_name }}"
+     ANSIBLE_ROLES_PATH: ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/roles:~/.ansible/roles
+     ANSIBLE_WORKING_DIR: mcloud-infra/ansible
+     ANSIBLE_OPTIONS: ${{ github.event.inputs.options }}
+     TARGET_HOST: ${{ github.event.inputs.project_name }}_${{ github.event.inputs.environment }}
+     #ANSIBLE_PLAYBOOK: ${{ github.event.inputs.playbook }}.yml
+     ANSIBLE_PLAYBOOK: mDeployer.yml
+     ANSIBLE_EXTRA_VARS: "project_environment=${{ github.event.inputs.project_name }} env_name=${{ github.event.inputs.environment }}"
+     ANSIBLE_BUILD_VARS: "build_number=${{ github.run_number }} appname=${{ github.event.inputs.DeployApp }}"
+     ANSIBLE_GROUP_VARS: group_vars/${{ github.event.inputs.project_name }}_${{ github.event.inputs.environment }}.yaml
+     SLACK_CHANNEL: '#devops'
+     ANSIBLE_LOG_FOLDER: ${GITHUB_WORKSPACE}/ansible
+     
+    # Build & Deploy Vars
+     DeployBuildNumber: ${{ github.event.inputs.DeployBuildNumber }}
+     DeployApp: ${{ github.event.inputs.DeployApp }}
+    #  BuildBranch: ${{ github.event.inputs.BuildBranch }}
+    #  MakeSrcZip: ${{ github.event.inputs.MakeSrcZip }}
+      
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+        
+      - name: Install required pkgs
+        run: |
+          ansible --version
+          /opt/pipx/venvs/ansible-core/bin/python -m pip install prettytable
+          sudo curl -sL "https://raw.githubusercontent.com/rockymadden/slack-cli/master/src/slack" -o /usr/bin/mslack
+          sudo chmod +x /usr/bin/mslack
+          sudo timedatectl set-timezone Asia/Calcutta
+
+      - name: Prepare mCloud-Platform ${{ env.ANSIBLE_WORKING_DIR }}
+        run: |
+          git clone -b main git@github.com:HarryTheDevOpsGuy/mCloud-infra.git ${GITHUB_WORKSPACE}/mcloud-infra
+          git clone -b master git@bitbucket.org:devopsexpert/mcloud-ansible.git ${GITHUB_WORKSPACE}/mcloud-ansible
+
+
+      - name: Make Code Build and prepare artifect
+        if: github.event.inputs.MakeBuild == 'true'
+        working-directory: ${{ env.ANSIBLE_WORKING_DIR }}
+        run: |
+          ansible-playbook -e "target_host=127.0.0.1 become=false ${ANSIBLE_EXTRA_VARS} ${ANSIBLE_BUILD_VARS}" -e"@${ANSIBLE_GROUP_VARS}" -t build ${ANSIBLE_PLAYBOOK}  -v
+          bash ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/assets/scripts/github-artifect.sh gtoken=${{ secrets.GH_PERSONAL_TOKEN }} tag=${TARGET_HOST} appname=${DeployApp} uploadfile=/tmp/mybuild/${TARGET_HOST}_${DeployApp}_${GITHUB_RUN_NUMBER}.tgz 
+
+      # - name: Release
+      #   if: github.event.inputs.MakeBuild == 'true'
+      #   uses: softprops/action-gh-release@v0.1.14
+      #   # if: startsWith(github.ref, 'refs/tags/')
+      #   with:
+      #     files: |
+      #       /tmp/mybuild/*.tgz 
+      #     tag_name: ${{ env.TARGET_HOST }}
+      #     repository: harrythedevopsguy/mConfigs
+      #     token: ${{ secrets.GH_PERSONAL_TOKEN }}
+      #   env:
+      #     GITHUB_REPOSITORY: harrythedevopsguy/mConfigs
+
+
+      - name: Run ansible playbook
+        if: github.event.inputs.MakeDeploy == 'true'
+        working-directory: ${{ env.ANSIBLE_WORKING_DIR }}
+        run: |
+           bash ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/assets/scripts/github-artifect.sh gtoken=${{ secrets.GH_PERSONAL_TOKEN }} tag=${TARGET_HOST} deploy_build=${DeployBuildNumber} appname=${DeployApp}
+           if [[ ! -f ${ANSIBLE_INVENTORY} ]]; then
+             export ANSIBLE_INVENTORY="/etc/ansible/hosts"
+             export TARGET_HOST="127.0.0.1"
+           fi 
+           
+           build_url=https://github.com/HarryTheDevOpsGuy/mproject/actions/runs/${{ github.run_id }}
+           #mslack chat send --title "${GITHUB_RUN_NUMBER} - Started Pipeline -> <${build_url}|${GITHUB_JOB}> By ${{ github.actor }}" --text "*Event :* \`$GITHUB_EVENT_NAME\`\n*Triggered :* \`${{ github.actor }}\`\n*Target Infra:* \`${TARGET_HOST}\`" --channel "${SLACK_CHANNEL}" --color good --filter '.file.url_private' > /dev/null 2>&1
+           #ansible-galaxy install -r ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/ansible-pull-requirements.yml
+           ansible-playbook -u harry -e "target_host=${TARGET_HOST} ${ANSIBLE_EXTRA_VARS}" ${{ env.ANSIBLE_OPTIONS }} ${ANSIBLE_PLAYBOOK}
+         
+
+
+
+      
+               
+

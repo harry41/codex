@@ -1,0 +1,80 @@
+
+name: mCloud Status - v2
+on:
+#   schedule:
+#     - cron:  '3 */6 * * *'
+  workflow_dispatch:
+
+
+jobs:
+  mCloud-Status-v2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     MAX_REPEAT: 80
+     MSTATUS_WORKSPACE: ${{ github.workspace }}/mstatus
+     MPLATFORM_WORKSPACE: ${{ github.workspace }}/mcloud-platform
+
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Prepare ${{ env.MPLATFORM_WORKSPACE }}
+        run: |
+          git clone git@github.com:mcloud-platform/mcloud-platform.github.io.git mcloud-platform
+          sudo curl -sL "https://github.com/HarryTheDevOpsGuy/msend/raw/master/$(uname -p)/msend" -o /usr/bin/msend
+          sudo curl -sL "https://github.com/HarryTheDevOpsGuy/mStatus/raw/master/$(uname -p)/mstatus" -o /usr/bin/mstatus        
+          sudo chmod +x /usr/bin/msend /usr/bin/mstatus
+          sudo timedatectl set-timezone Asia/Calcutta
+
+      - name: Run mStatus-v2
+        working-directory: ${{ env.MPLATFORM_WORKSPACE }}
+        run: |
+          export OUT_CONFIG_DIR=/tmp/configs
+          mkdir -p ${OUT_CONFIG_DIR}
+          declare -a CONFIG_REPO=(
+          "git@github.com:HarryTheDevOpsGuy/mStatus.git"
+          "git@github.com:HarryTheDevOpsGuy/mCloud-monika.git|configs/mstatus"
+          )
+          for (( i = 0; i < ${{ env.MAX_REPEAT }}; i++ )); do
+            echo;echo "======$(date) ========= $i/${{ env.MAX_REPEAT }}  ===================="
+            if [[ $(( i % 2 )) == 0 ]]; then
+              for (( p = 0; p < ${#CONFIG_REPO[@]}; p++ )); do 
+                repo_url=$(echo "${CONFIG_REPO[$p]}"| awk -F'|' '{print $1}')
+                yml_dir=$(echo "${CONFIG_REPO[$p]}"| awk -F'|' '{print $2}')
+                REPONAME=${repo_url##*/}
+                clone_path=/tmp/${REPONAME%%.*}
+
+                export YML_CONFIG_DIR=/tmp/${REPONAME%%.*}/${yml_dir}
+                if [[ ! -d ${clone_path} ]]; then
+                  git clone ${repo_url} ${clone_path} > /dev/null 2>&1
+                elif [[ -d ${YML_CONFIG_DIR} ]]; then
+                   git -C ${clone_path} pull > /dev/null 2>&1
+                fi
+                python /tmp/mStatus/yml2conf.py
+              done
+            fi
+            #cat ${OUT_CONFIG_DIR}/*
+            mstatus -c ${OUT_CONFIG_DIR} -r ${{ env.MPLATFORM_WORKSPACE }} -q          
+            #sleep 45
+          done
+               
+  TriggerWorkflow:
+    if: always()
+    #if: false
+    needs: [mCloud-Status-v2]
+    runs-on: ubuntu-latest
+    steps:
+      - name: TrigggerWorkFlow-mStatus-v2
+        run: |
+          curl -X POST -H "Accept: application/vnd.github.v3+json" -H "Authorization: token ${{ secrets.GH_PERSONAL_TOKEN }}" -d '{"ref":"refs/heads/master"}' \
+            https://api.github.com/repos/harrythedevopsguy/mProject/actions/workflows/mCloud-Status-v2.yml/dispatches

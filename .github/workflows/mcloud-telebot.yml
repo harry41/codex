@@ -1,0 +1,55 @@
+
+name: mCloud TeleBot
+on:
+#   schedule:
+#     - cron:  '1 4 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      jsondata:
+        description: 'Your Telegram JsonData'
+        default: "{'update_id': 451330410, 'message': {'group_chat_created': False, 'delete_chat_photo': False, 'new_chat_members': [], 'new_chat_photo': [], 'supergroup_chat_created': False, 'channel_chat_created': False, 'photo': [], 'entities': [], 'message_id': 172, 'date': 1669713923, 'chat': {'first_name': 'Harry', 'last_name': '- The DevOps Guy', 'type': 'private', 'username': 'HarryTheDevOpsGuy', 'id': 1978087031}, 'text': 'Hi this is harry\n\ni see you somewhere. \ndo you know', 'caption_entities': [], 'from': {'language_code': 'en', 'username': 'HarryTheDevOpsGuy', 'last_name': '- The DevOps Guy', 'first_name': 'Harry', 'is_bot': False, 'id': 1978087031}}}"
+        
+jobs:
+  mCloud-TeleBot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     #ANSIBLE_HOST_KEY_CHECKING: False
+    #  ANSIBLE_CONFIG: "${GITHUB_WORKSPACE}/mcloud-ansible/inventory/ansible.cfg"
+    #  ANSIBLE_ROLES_PATH: ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/roles:~/.ansible/roles
+    #  ANSIBLE_WORKING_DIR: mcloud-ansible/playbook
+    #  JSONDATA: ${{ github.event.inputs.jsondata }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     SLACK_CHANNEL: '#devops'
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.TG_SUPERBOT_TOKEN }}
+    #  ANSIBLE_LOG_FOLDER: ${GITHUB_WORKSPACE}/ansible
+     
+             
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+            
+#       - name: info 
+#         run: |
+#           /opt/pipx/venvs/ansible-core/bin/python -m pip install prettytable jmespath
+#           sudo curl -sL https://raw.githubusercontent.com/rockymadden/slack-cli/master/src/slack -o /usr/bin/mslack
+#           sudo chmod +x /usr/bin/mslack
+#           pip install -r scripts/python/telebot/requirements.txt
+  
+      - name: Clone required repo
+        run: |
+          git clone git@github.com:HarryTheDevOpsGuy/mCloud-infra.git ${GITHUB_WORKSPACE}/mCloud-infra
+          
+      - name: Run telebot python
+        working-directory: ${{ github.workspace }}/mCloud-infra
+        run: |
+          ls -la
+          pip install -r scripts/python/telebot/requirements.txt
+          python scripts/python/telebot/mcloud.py "${{ github.event.inputs.jsondata }}"
+          ls -la /tmp/mcloud-monika
+           
+         

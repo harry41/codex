@@ -1,0 +1,93 @@
+
+name: mCloud Status
+on:
+#   schedule:
+#     - cron:  '3 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      options:
+        description: 'Provide you ansible options'
+        default: '-t mstatus'
+
+
+jobs:
+  mCloud-Status:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     #ANSIBLE_CONFIG: "${{ github.workspace }}/mcloud-ansible/inventory/ansible.cfg"
+     ANSIBLE_INVENTORY: "inventory/hosts_monika"
+     ANSIBLE_ROLES_PATH: ${{ github.workspace }}/mcloud-ansible/playbook/roles:~/.ansible/roles
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+     ANSIBLE_OPTIONS: ${{ github.event.inputs.options }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     MCLOUD_ENCLUDE_GVARS: "ansible-pull-mstatus.yaml"
+     BRANCH_NAME: 'main'
+     EXTRA_VARS: "/tmp/extravars.sh"
+     MAX_REPEAT: 90
+     MONIKA_WORKSPACE: ${{ github.workspace }}/mCloud-monika
+     MPLATFORM_WORKSPACE: ${{ github.workspace }}/mcloud-platform
+     MANSIBLE_WORKSPACE: ${{ github.workspace }}/mcloud-ansible
+     BASE_DIR: ${{ github.workspace }}
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Checkout ${{ env.MONIKA_WORKSPACE }}
+        uses: actions/checkout@v2.4.0
+        with:
+          repository: HarryTheDevOpsGuy/mCloud-monika
+          path: ${{ env.MONIKA_WORKSPACE }}
+          ref: ${{ env.BRANCH_NAME }}
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Prepare ${{ env.MPLATFORM_WORKSPACE }}
+        run: |
+          /opt/pipx/venvs/ansible-core/bin/python -m pip install prettytable
+          git clone -b master git@bitbucket.org:devopsexpert/mcloud-ansible.git ${{ env.MANSIBLE_WORKSPACE }}
+          git clone git@github.com:mcloud-platform/mcloud-platform.github.io.git mcloud-platform
+          sudo cat <<EOT >> ${{ env.EXTRA_VARS }}
+          export SERVER=github
+          export MTRACKER_SILENT="true"
+          export MAGENT_SILENT="true"
+          EOT
+          sudo curl -sL https://github.com/HarryTheDevOpsGuy/mTracker/raw/master/$(uname -p)/mtracker -o /usr/bin/mtracker
+          sudo curl -sL "https://github.com/HarryTheDevOpsGuy/msend/raw/master/$(uname -p)/msend" -o /usr/bin/msend
+          sudo chmod +x /usr/bin/mtracker /usr/bin/msend
+          mtracker -v
+          msend -v
+          sudo timedatectl set-timezone Asia/Calcutta
+
+      - name: Run mStatus
+        working-directory: ${{ env.MPLATFORM_WORKSPACE }}
+        run: |
+          for (( i = 0; i < ${{ env.MAX_REPEAT }}; i++ )); do
+            echo;echo "======$(date) ========= $i/${{ env.MAX_REPEAT }}  ===================="
+            if [[ $(( i % 50 )) == 0 ]]; then
+                bash ${{ env.MONIKA_WORKSPACE }}/ansible-pull.sh
+            fi
+            sudo mtracker -m a97 -f ${{ env.EXTRA_VARS }}
+            sudo rm -rf /etc/cron.d/mtracker
+            mstatus -c ${GITHUB_WORKSPACE}/configs -r ${{ env.MPLATFORM_WORKSPACE }} -q            
+            #sleep 45
+          done
+               
+  TriggerWorkflow:
+    # if: always()
+    if: false
+    needs: [mCloud-Status]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke workflow without inputs
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: ${{github.workflow}}
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}

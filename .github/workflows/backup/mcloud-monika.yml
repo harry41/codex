@@ -1,0 +1,74 @@
+
+name: mCloud Monika
+on:
+#   schedule:
+#     - cron:  '3 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      options:
+        description: 'Provide you ansible options'
+        default: '-t run_script,deploy_templates,ansible-pull'
+
+
+jobs:
+  mCloud-Monika:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+     ANSIBLE_CONFIG: "${GITHUB_WORKSPACE}/mcloud-ansible/inventory/ansible.cfg"
+     ANSIBLE_INVENTORY: "inventory/hosts_monika"
+     ANSIBLE_ROLES_PATH: ${GITHUB_WORKSPACE}/mcloud-ansible/playbook/roles:~/.ansible/roles
+     ANSIBLE_WORKING_DIR: mcloud-monika
+     DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+     MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+     ANSIBLE_OPTIONS: ${{ github.event.inputs.options }}
+     SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+     BRANCH_NAME: 'mstatus-v1'
+     #SLACK_CHANNEL: '#devops'
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Checkout ${{ env.ANSIBLE_WORKING_DIR }}
+        uses: actions/checkout@v2.4.0
+        with:
+          repository: HarryTheDevOpsGuy/mCloud-monika
+          path: ${{ env.ANSIBLE_WORKING_DIR }}
+          ref: mstatus-v1
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Prepare ${{ env.ANSIBLE_WORKING_DIR }}
+        run: |
+          /opt/pipx/venvs/ansible-core/bin/python -m pip install prettytable
+          git clone -b master git@bitbucket.org:devopsexpert/mcloud-ansible.git ${GITHUB_WORKSPACE}/mcloud-ansible
+
+      - name: Run ansible playbook
+        working-directory: ${{ env.ANSIBLE_WORKING_DIR }}
+        run: |
+          bash ansible-pull.sh
+
+          
+      - name: Run Monika
+        working-directory: /opt
+        run: |
+          # monika -c /etc/monika.yml --verbose
+          ls -la /tmp/vars 
+           
+        
+  TriggerWorkflow:
+    #if: always()
+    if: false
+    needs: [mCloud-Monika]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke workflow without inputs
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: ${{github.workflow}}
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}

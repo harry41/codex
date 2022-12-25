@@ -1,0 +1,85 @@
+
+name: SpringBootBuild
+on:
+  # schedule:
+  #   - cron:  '0 5 */3 * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        default: 'v1'
+      repo:
+        type: choice
+        options:
+          - hariji23/ads_manager_backend
+          - deleted
+          - disabled_inactivity
+          - disabled_manually
+      CREATE_TAG:
+        type: boolean
+
+
+jobs:
+  SpringBootBuild:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        #working-directory: /opt
+        shell: bash
+    env:
+     GIT_SSH_COMMAND: "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+    #  DEVOPS_SLACK_WEBHOOK: ${{ secrets.DEVOPS_SLACK_WEBHOOK }}
+    #  MCLOUD_TELEGRAM_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
+    #  MCLOUD_TELEGRAM_GROUPID: '-737229532' # mcloud
+    #  MCLOUD_SENDGRID_API_KEY: ${{ secrets.MCLOUD_SENDGRID_API_KEY }}
+    #  SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
+    #  DUMP_DIR: "/tmp/mbackup"
+    #  ZIPPASS: ${{ secrets.SECRETPASS }}
+     CREATE_TAG: ${{ github.event.inputs.CREATE_TAG }}
+     REPO: ${{ github.event.inputs.repo }}
+     OUTPUT_DIR: /tmp/output
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      - name: Install required pkgs
+        run: |         
+          #git clone git@bitbucket.org:devopsexpert/mcloud-infra.git /tmp/mcloud-infra
+          git clone git@github.com:${{ env.REPO }}.git  /tmp/${{ env.REPO }}
+          mvn --version
+
+
+      - name: Make Build
+        run: |
+          cd /tmp/${{ env.REPO }} 
+          mvn clean install -DskipTests
+          mkdir -p ${OUTPUT_DIR}
+          # mv /tmp/${{ env.REPO }}/target/*.jar ${OUTPUT_DIR}/${GITHUB_RUN_NUMBER}
+          #tar cvzf /tmp/ads_manager_ui/dist-${GITHUB_RUN_NUMBER}.tgz .
+          scp -o StrictHostKeyChecking=no /tmp/${{ env.REPO }}/target/ads_manager-0.0.1-SNAPSHOT.jar abhilash@103.76.1.255:/opt/build/ads-manager-${GITHUB_RUN_NUMBER}.jar
+          ssh -o StrictHostKeyChecking=no abhilash@103.76.1.255 "(
+            OLD_PID=$(ps -ef | grep "[a]ds-manager.jar"|awk '{print $2}')
+            [ ! -z ${OLD_PID} ] || sudo kill -9 ${OLD_PID}
+            sudo rm -rf /var/www/backend/ads-manager.jar
+            sudo mv /opt/build/ads-manager-${GITHUB_RUN_NUMBER}.jar  /var/www/backend/ads-manager.jar
+            bash /var/www/backend/run.sh;
+            echo;
+          )"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        # if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            /tmp/${{ env.REPO }}/target/*.jar
+          tag_name: ${{ github.event.inputs.version }}
+          repository: ${{ env.REPO }}
+          #body_path: ${{ github.workspace }}-CHANGELOG.txt
+          # note you'll typically need to create a personal access token
+          # with permissions to create releases in the other repo
+          token: ${{ secrets.GH_PERSONAL_TOKEN }}
+        env:
+          #GITHUB_REPOSITORY: HarryTheDevOpsGuy/mSite
+          GITHUB_REPOSITORY: hariji23/ads_manager_ui   
+           
