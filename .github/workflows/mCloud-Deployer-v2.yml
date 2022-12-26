@@ -76,6 +76,7 @@ jobs:
           sudo curl -sL "https://raw.githubusercontent.com/rockymadden/slack-cli/master/src/slack" -o /usr/bin/mslack
           sudo chmod +x /usr/bin/mslack
           sudo timedatectl set-timezone Asia/Calcutta
+          env
 
       - name: Prepare mCloud-Platform ${{ env.ANSIBLE_WORKING_DIR }}
         run: |

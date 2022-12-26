@@ -64,6 +64,7 @@ jobs:
           sudo chmod +x /usr/bin/mslack
           #ansible-lint --version
           ansible --version
+          env
 
       - name: mproject clone ${{ env.ANSIBLE_WORKING_DIR }}
         run: |
