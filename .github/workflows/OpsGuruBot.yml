@@ -35,6 +35,7 @@ jobs:
         working-directory: ${{ github.workspace }}/mCloud-Apps
         run: |
           pip install -r OpsGuruBot/requirements.txt
+          echo "Started Opsguru bot" > output.log
           #python OpsGuruBot/OpsGuruBot.py
           nohup python -u OpsGuruBot/OpsGuruBot.py > output.log &
           echo "started"
