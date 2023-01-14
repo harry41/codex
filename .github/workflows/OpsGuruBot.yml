@@ -21,7 +21,7 @@ jobs:
      SLACK_CLI_TOKEN: ${{ secrets.DEFAULT_SLACK_TOKEN }}
      SLACK_CHANNEL: '#devops'
      TG_TOKEN: ${{ secrets.MCLOUD_TELEGRAM_TOKEN }}
-     GH_TOKEN: ${{ secrets.GH_PERSONAL_TOKEN }}
+     GH_TOKEN: ${{ secrets.MPROJECT_GH_TOKEN }}
              
     steps:
       - uses: webfactory/ssh-agent@v0.5.4
