@@ -30,7 +30,8 @@ jobs:
           
       - name: Prepare ${{ env.MPLATFORM_WORKSPACE }}
         run: |
-          git clone git@github.com:mcloud-platform/mcloud-platform.github.io.git mcloud-platform
+          #git clone git@github.com:mcloud-platform/mcloud-platform.github.io.git mcloud-platform
+          git clone -b v2 git@github.com:HarryTheDevOpsGuy/msite.git mcloud-platform
           sudo curl -sL "https://github.com/HarryTheDevOpsGuy/msend/raw/master/$(uname -p)/msend" -o /usr/bin/msend
           sudo curl -sL "https://github.com/HarryTheDevOpsGuy/mStatus/raw/master/$(uname -p)/mstatus" -o /usr/bin/mstatus        
           sudo chmod +x /usr/bin/msend /usr/bin/mstatus
@@ -64,7 +65,7 @@ jobs:
               done
             fi
             #cat ${OUT_CONFIG_DIR}/*
-            mstatus -c ${OUT_CONFIG_DIR} -r ${{ env.MPLATFORM_WORKSPACE }} -q          
+            mstatus -c ${OUT_CONFIG_DIR} -r ${{ env.MPLATFORM_WORKSPACE }} -q -g         
             #sleep 45
           done
                
