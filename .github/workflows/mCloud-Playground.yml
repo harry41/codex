@@ -19,7 +19,7 @@ on:
 #         default: 'lemp'
       options:
         description: 'Provide you ansible options'
-        default: '-t base,user_mgmt'
+        default: '-t user_mgmt'
 
 jobs:
   mUsers:
