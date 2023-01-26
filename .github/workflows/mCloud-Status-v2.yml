@@ -70,7 +70,7 @@ jobs:
           done
                
   TriggerWorkflow:
-    if: always()
+    #if: always()
     #if: false
     needs: [mCloud-Status-v2]
     runs-on: ubuntu-latest
