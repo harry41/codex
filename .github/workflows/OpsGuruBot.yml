@@ -47,7 +47,7 @@ jobs:
 
 
   TriggerWorkflow:
-    if: always()
+    #if: always()
     #if: false
     needs: [OpsGuruBot]
     runs-on: ubuntu-latest
